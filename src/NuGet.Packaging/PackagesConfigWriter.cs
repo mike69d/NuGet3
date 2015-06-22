@@ -24,6 +24,7 @@ namespace NuGet.Packaging
         private readonly List<PackageReference> _entries;
         private NuGetVersion _minClientVersion;
         private IFrameworkNameProvider _frameworkMappings;
+        private XDocument _xDocument;
 
         /// <summary>
         /// Create a packages.config writer
@@ -40,6 +41,7 @@ namespace NuGet.Packaging
             _closed = false;
             _entries = new List<PackageReference>();
             _frameworkMappings = frameworkMappings;
+            _xDocument = XDocument.Load(_stream, LoadOptions.PreserveWhitespace);
         }
 
         /// <summary>
@@ -113,11 +115,45 @@ namespace NuGet.Packaging
             }
 
             _entries.Add(entry);
+
+        }
+
+        /// <summary>
+        /// Adds a package entry to the file
+        /// </summary>
+        /// <param name="entry">Package reference entry</param>
+        public void UpdatePackageEntry(PackageReference entry)
+        {
+            if (entry == null)
+            {
+                throw new ArgumentNullException("entry");
+            }
+
+            if (_disposed || _closed)
+            {
+                throw new PackagingException("Writer closed. Unable to add entry.");
+            }
+
+            if (_entries.Where(e => StringComparer.OrdinalIgnoreCase.Equals(e.PackageIdentity.Id, entry.PackageIdentity.Id)).Any())
+            {
+                throw new PackagingException(String.Format(CultureInfo.InvariantCulture, "Package entry already exists. Id: {0}", entry.PackageIdentity.Id));
+            }
+
+            // Check if package entry already exist on packages.config file
+            var matchingEntry = _xDocument.Descendants("package")
+                .Where(e => e.FirstAttribute.Value.Equals(entry.PackageIdentity.Id, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+
+            var newEntry = CreateXElementForPackageEntry(entry);
+
+            if (matchingEntry != null)
+            {
+                _xDocument.ReplaceWith(matchingEntry, newEntry);
+            }
         }
 
         private void WriteFile()
         {
-            var xml = new XDocument();
             var packages = new XElement(XName.Get("packages"));
 
             if (_minClientVersion != null)
@@ -126,48 +162,54 @@ namespace NuGet.Packaging
                 packages.Add(minClientVersionAttribute);
             }
 
-            xml.Add(packages);
+            _xDocument.Add(packages);
 
             var sorted = _entries.OrderBy(e => e.PackageIdentity.Id, StringComparer.OrdinalIgnoreCase);
 
             foreach (var entry in sorted)
             {
-                var node = new XElement(XName.Get("package"));
-
-                node.Add(new XAttribute(XName.Get("id"), entry.PackageIdentity.Id));
-                node.Add(new XAttribute(XName.Get("version"), entry.PackageIdentity.Version));
-
-                // map the framework to the short name
-                // special frameworks such as any and unsupported will be ignored here
-                if (entry.TargetFramework.IsSpecificFramework)
-                {
-                    var frameworkShortName = entry.TargetFramework.GetShortFolderName(_frameworkMappings);
-
-                    if (!String.IsNullOrEmpty(frameworkShortName))
-                    {
-                        node.Add(new XAttribute(XName.Get("targetFramework"), frameworkShortName));
-                    }
-                }
-
-                if (entry.HasAllowedVersions)
-                {
-                    node.Add(new XAttribute(XName.Get("allowedVersions"), entry.AllowedVersions.ToString()));
-                }
-
-                if (entry.IsDevelopmentDependency)
-                {
-                    node.Add(new XAttribute(XName.Get("developmentDependency"), "true"));
-                }
-
-                if (entry.RequireReinstallation)
-                {
-                    node.Add(new XAttribute(XName.Get("requireReinstallation"), "true"));
-                }
-
+                var node = CreateXElementForPackageEntry(entry);
                 packages.Add(node);
             }
 
-            xml.Save(_stream);
+            _xDocument.Save(_stream);
+        }
+
+        private XElement CreateXElementForPackageEntry(PackageReference entry)
+        {
+            var node = new XElement(XName.Get("package"));
+
+            node.Add(new XAttribute(XName.Get("id"), entry.PackageIdentity.Id));
+            node.Add(new XAttribute(XName.Get("version"), entry.PackageIdentity.Version));
+
+            // map the framework to the short name
+            // special frameworks such as any and unsupported will be ignored here
+            if (entry.TargetFramework.IsSpecificFramework)
+            {
+                var frameworkShortName = entry.TargetFramework.GetShortFolderName(_frameworkMappings);
+
+                if (!String.IsNullOrEmpty(frameworkShortName))
+                {
+                    node.Add(new XAttribute(XName.Get("targetFramework"), frameworkShortName));
+                }
+            }
+
+            if (entry.HasAllowedVersions)
+            {
+                node.Add(new XAttribute(XName.Get("allowedVersions"), entry.AllowedVersions.ToString()));
+            }
+
+            if (entry.IsDevelopmentDependency)
+            {
+                node.Add(new XAttribute(XName.Get("developmentDependency"), "true"));
+            }
+
+            if (entry.RequireReinstallation)
+            {
+                node.Add(new XAttribute(XName.Get("requireReinstallation"), "true"));
+            }
+
+            return node;
         }
 
         /// <summary>
