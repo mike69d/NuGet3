@@ -16,6 +16,7 @@ namespace NuGet.Packaging.Test
         [Fact]
         public void PackagesConfigWriter_Basic()
         {
+            System.Diagnostics.Debugger.Launch();
             var stream = new MemoryStream();
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
@@ -49,8 +50,71 @@ namespace NuGet.Packaging.Test
         }
 
         [Fact]
+        public void PackagesConfigWriter_Update()
+        {
+            System.Diagnostics.Debugger.Launch();
+            var stream = new MemoryStream();
+
+            using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
+            {
+                writer.WritePackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
+
+                writer.UpdatePackageEntry("packageA", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable - net45 + win8"));
+            }
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            var xml = XDocument.Load(stream);
+
+            Assert.Equal("utf-8", xml.Declaration.Encoding);
+
+            PackagesConfigReader reader = new PackagesConfigReader(xml);
+
+            var packages = reader.GetPackages().ToArray();
+            Assert.Equal("1", packages.Count().ToString());
+            Assert.Equal("packageA", packages[0].PackageIdentity.Id);
+
+            Assert.Equal("2.0.0", packages[0].PackageIdentity.Version.ToNormalizedString());
+
+            Assert.Equal("portable-net45+win8", packages[0].TargetFramework.GetShortFolderName());
+        }
+
+        [Fact]
+        public void PackagesConfigWriter_Remove()
+        {
+            System.Diagnostics.Debugger.Launch();
+            var stream = new MemoryStream();
+
+            using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
+            {
+                writer.WritePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
+
+                writer.WritePackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
+
+                writer.RemovePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
+            }
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            var xml = XDocument.Load(stream);
+
+            Assert.Equal("utf-8", xml.Declaration.Encoding);
+
+            PackagesConfigReader reader = new PackagesConfigReader(xml);
+
+            var packages = reader.GetPackages().ToArray();
+            Assert.Equal("1", packages.Count().ToString());
+            Assert.Equal("packageA", packages[0].PackageIdentity.Id);
+
+            Assert.Equal("1.0.1", packages[0].PackageIdentity.Version.ToNormalizedString());
+
+            Assert.Equal("net45", packages[0].TargetFramework.GetShortFolderName());
+        }
+
+        [Fact]
         public void PackagesConfigWriter_Duplicate()
         {
+            System.Diagnostics.Debugger.Launch();
             var stream = new MemoryStream();
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))

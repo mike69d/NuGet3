@@ -138,6 +138,30 @@ namespace NuGet.Packaging
             return string.Format(CultureInfo.CurrentCulture, GetString("StringCannotBeNullOrEmpty"), p0);
         }
 
+        /// <summary>
+        /// Writer closed. Unable to add entry.
+        /// </summary>
+        internal static string UnableToAddEntry
+        {
+            get { return GetString("UnableToAddEntry"); }
+        }
+
+        /// <summary>
+        /// Package entry already exists. Id: {0}
+        /// </summary>
+        internal static string PackageEntryAlreadyExist
+        {
+            get { return GetString("PackageEntryAlreadyExist"); }
+        }
+
+        /// <summary>
+        /// Writer closed. Unable to add entry.
+        /// </summary>
+        internal static string MinClientVersionAlreadyExist
+        {
+            get { return GetString("MinClientVersionAlreadyExist"); }
+        }
+
         private static string GetString(string name, params string[] formatterNames)
         {
             var value = _resourceManager.GetString(name);
