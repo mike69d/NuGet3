@@ -183,7 +183,7 @@ namespace NuGet.Packaging
             if (matchingEntry != null)
             {
                 var newEntryNode = CreateXElementForPackageEntry(newEntry);
-                packagesNode.ReplaceWith(matchingEntry, newEntryNode);
+                matchingEntry.ReplaceWith(newEntry);
             }
         }
         
@@ -328,6 +328,9 @@ namespace NuGet.Packaging
         private void SortPackageNodes(XElement packagesNode)
         {
             var newPackagesNode = new XElement(PackagesNodeName,
+                from minClient in packagesNode.Attributes(MinClientAttributeName)
+                select minClient,
+
                 from package in packagesNode.Descendants(PackageNodeName)
                 orderby package.FirstAttribute.Value
                 select package);

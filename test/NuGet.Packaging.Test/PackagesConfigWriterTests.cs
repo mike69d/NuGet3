@@ -63,7 +63,7 @@ namespace NuGet.Packaging.Test
                 writer.WritePackageEntry(packageReferenceA);
 
                 var packageIdentityB = new PackageIdentity("packageA", NuGetVersion.Parse("2.0.0"));
-                var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("portable - net45 + win8"));
+                var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("portable-net45+win8"));
 
                 writer.UpdatePackageEntry(packageReferenceA, packageReferenceB);
             }
