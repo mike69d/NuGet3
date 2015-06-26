@@ -145,13 +145,15 @@ namespace NuGet.Packaging
             {
                 throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryAlreadyExist, entry.PackageIdentity.Id));
             }
+            else
+            {
+                // Append the entry to existing package nodes
+                var node = CreateXElementForPackageEntry(entry);
+                packagesNode.Add(node);
 
-            // Append the entry to existing package nodes
-            var node = CreateXElementForPackageEntry(entry);
-            packagesNode.Add(node);
-
-            // Sort the entries by package Id
-            SortPackageNodes(packagesNode);
+                // Sort the entries by package Id
+                SortPackageNodes(packagesNode);
+            }
         }
 
         /// <summary>
@@ -178,12 +180,16 @@ namespace NuGet.Packaging
             var packagesNode = _xDocument.Descendants(PackagesNodeName).FirstOrDefault();
 
             // Check if package entry already exist on packages.config file
-            var matchingEntry = FindMatchingPackageEntry(oldEntry, packagesNode);
+            var matchingNode = FindMatchingPackageNode(oldEntry, packagesNode);
 
-            if (matchingEntry != null)
+            if (matchingNode == null)
+            {
+                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryNotExist, oldEntry.PackageIdentity.Id, oldEntry.PackageIdentity.Version));
+            }
+            else
             {
                 var newEntryNode = CreateXElementForPackageEntry(newEntry);
-                matchingEntry.ReplaceWith(newEntry);
+                matchingNode.ReplaceWith(newEntryNode);
             }
         }
         
@@ -243,15 +249,19 @@ namespace NuGet.Packaging
             }
 
             var packagesNode = _xDocument.Descendants(PackagesNodeName).FirstOrDefault();
-            var matchingEntry = FindMatchingPackageEntry(entry, packagesNode);
+            var matchingNode = FindMatchingPackageNode(entry, packagesNode);
 
-            if (matchingEntry != null)
+            if (matchingNode == null)
             {
-                matchingEntry.Remove();
+                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryNotExist, entry.PackageIdentity.Id, entry.PackageIdentity.Version));
             }
+            else
+            {
+                matchingNode.Remove();
 
-            // Sort the package nodes after removal
-            SortPackageNodes(packagesNode);
+                // Sort the package nodes after removal
+                SortPackageNodes(packagesNode);
+            }
         }
 
         private XElement EnsurePackagesNode()
@@ -304,25 +314,25 @@ namespace NuGet.Packaging
             return node;
         }
 
-        private XElement FindMatchingPackageEntry(PackageReference entry, XElement packagesNode)
+        private XElement FindMatchingPackageNode(PackageReference entry, XElement packagesNode)
         {
-            var matchingEntry = packagesNode?.Descendants(PackageNodeName)
+            var matchingNode = packagesNode?.Descendants(PackageNodeName)
                 .Where(e => e.FirstAttribute.Value.Equals(entry.PackageIdentity.Id, StringComparison.OrdinalIgnoreCase))
                 .FirstOrDefault();
 
-            if (matchingEntry != null)
+            if (matchingNode != null)
             {
                 var versionAttribute = XName.Get(VersionAttributeName);
                 NuGetVersion version;
-                NuGetVersion.TryParse(matchingEntry.Attributes(versionAttribute).FirstOrDefault().Value, out version);
+                NuGetVersion.TryParse(matchingNode.Attributes(versionAttribute).FirstOrDefault().Value, out version);
 
                 if (version.Equals(entry.PackageIdentity.Version))
                 {
-                    return matchingEntry;
+                    return matchingNode;
                 }
             }
 
-            throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryAlreadyExist, entry.PackageIdentity.Id));
+            return null;
         }
 
         private void SortPackageNodes(XElement packagesNode)

@@ -16,7 +16,6 @@ namespace NuGet.Packaging.Test
         [Fact]
         public void PackagesConfigWriter_Basic()
         {
-            System.Diagnostics.Debugger.Launch();
             var stream = new MemoryStream();
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
@@ -52,7 +51,6 @@ namespace NuGet.Packaging.Test
         [Fact]
         public void PackagesConfigWriter_Update()
         {
-            System.Diagnostics.Debugger.Launch();
             var stream = new MemoryStream();
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
@@ -86,9 +84,30 @@ namespace NuGet.Packaging.Test
         }
 
         [Fact]
+        public void PackagesConfigWriter_UpdateError()
+        {
+            var stream = new MemoryStream();
+
+            using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
+            {
+                var packageIdentityA = new PackageIdentity("packageA", NuGetVersion.Parse("1.0.1"));
+                var packageReferenceA = new PackageReference(packageIdentityA, NuGetFramework.Parse("net45"));
+
+                writer.WritePackageEntry(packageReferenceA);
+
+                var packageIdentityB = new PackageIdentity("packageB", NuGetVersion.Parse("2.0.0"));
+                var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("portable-net45+win8"));
+
+                var packageIdentityC = new PackageIdentity("packageC", NuGetVersion.Parse("1.0.1"));
+                var packageReferenceC = new PackageReference(packageIdentityC, NuGetFramework.Parse("net45"));
+
+                Assert.Throws<PackagingException>(() => writer.UpdatePackageEntry(packageReferenceB, packageReferenceC));
+            }
+        }
+
+        [Fact]
         public void PackagesConfigWriter_Remove()
         {
-            System.Diagnostics.Debugger.Launch();
             var stream = new MemoryStream();
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
@@ -118,9 +137,19 @@ namespace NuGet.Packaging.Test
         }
 
         [Fact]
+        public void PackagesConfigWriter_RemoveError()
+        {
+            var stream = new MemoryStream();
+
+            using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
+            {
+                Assert.Throws<PackagingException>(() => writer.RemovePackageEntry("packageA", NuGetVersion.Parse("2.0.1"), NuGetFramework.Parse("net4")));
+            }
+        }
+
+        [Fact]
         public void PackagesConfigWriter_Duplicate()
         {
-            System.Diagnostics.Debugger.Launch();
             var stream = new MemoryStream();
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
