@@ -141,6 +141,9 @@
   <data name="PackageEntryAlreadyExist" xml:space="preserve">
     <value>Package entry already exists. Id: {0}</value>
   </data>
+  <data name="PackageEntryNotExist" xml:space="preserve">
+    <value>Package entry does not exists. Id: {0}, Version: {1}</value>
+  </data>
   <data name="PackageStreamShouldBeSeekable" xml:space="preserve">
     <value>Package stream should be seekable</value>
   </data>

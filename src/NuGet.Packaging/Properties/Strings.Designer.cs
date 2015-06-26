@@ -155,6 +155,14 @@ namespace NuGet.Packaging
         }
 
         /// <summary>
+        /// Package entry does not exists. Id: {0}, Version: {1}
+        /// </summary>
+        internal static string PackageEntryNotExist
+        {
+            get { return GetString("PackageEntryNotExist"); }
+        }
+
+        /// <summary>
         /// Writer closed. Unable to add entry.
         /// </summary>
         internal static string MinClientVersionAlreadyExist

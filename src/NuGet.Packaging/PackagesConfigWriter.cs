@@ -32,7 +32,6 @@ namespace NuGet.Packaging
         private readonly Stream _stream;
         private bool _disposed;
         private bool _closed;
-        private readonly List<PackageReference> _entries;
         private NuGetVersion _minClientVersion;
         private IFrameworkNameProvider _frameworkMappings;
         private XDocument _xDocument;
@@ -50,7 +49,6 @@ namespace NuGet.Packaging
         {
             _stream = stream;
             _closed = false;
-            _entries = new List<PackageReference>();
             _frameworkMappings = frameworkMappings;
             LoadOrCreateXDocument();
         }
@@ -141,71 +139,35 @@ namespace NuGet.Packaging
                 throw new PackagingException(string.Format(CultureInfo.CurrentCulture, Strings.UnableToAddEntry));
             }
 
-            if (_entries.Where(e => StringComparer.OrdinalIgnoreCase.Equals(e.PackageIdentity.Id, entry.PackageIdentity.Id)).Any())
+            var packagesNode = EnsurePackagesNode();
+
+            if (packagesNode.Descendants(PackageNodeName).Where(e => StringComparer.OrdinalIgnoreCase.Equals(e.FirstAttribute.Value, entry.PackageIdentity.Id)).Any())
             {
                 throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryAlreadyExist, entry.PackageIdentity.Id));
             }
-
-            _entries.Add(entry);
-
-            var packagesNode = EnsurePackagesNode();
 
             // Append the entry to existing package nodes
             var node = CreateXElementForPackageEntry(entry);
             packagesNode.Add(node);
 
             // Sort the entries by package Id
-            var newPackagesNode = SortPackageNodes(packagesNode);
-            packagesNode = newPackagesNode;
+            SortPackageNodes(packagesNode);
         }
-
-        /// <summary>
-        /// Update a package entry
-        /// </summary>
-        /// <param name="packageId">Package Id</param>
-        /// <param name="version">Package version</param>
-        /// <param name="targetFramework">Package targetFramework</param>
-        public void UpdatePackageEntry(string packageId, NuGetVersion version, NuGetFramework targetFramework)
-        {
-            if (packageId == null)
-            {
-                throw new ArgumentNullException(nameof(packageId));
-            }
-
-            if (version == null)
-            {
-                throw new ArgumentNullException(nameof(version));
-            }
-
-            if (targetFramework == null)
-            {
-                throw new ArgumentNullException(nameof(targetFramework));
-            }
-
-            UpdatePackageEntry(new PackageIdentity(packageId, version), targetFramework);
-        }
-
-        /// <summary>
-        /// Update a package identity to the file
-        /// </summary>
-        /// <param name="identity">Package identity</param>
-        /// <param name="targetFramework">Package targetFramework</param>
-        public void UpdatePackageEntry(PackageIdentity identity, NuGetFramework targetFramework)
-        {
-            var entry = new PackageReference(identity, targetFramework);
-
-            UpdatePackageEntry(entry);
-        } 
 
         /// <summary>
         /// Update a package entry to the file
         /// </summary>
         /// <param name="entry">Package reference entry</param>
-        public void UpdatePackageEntry(PackageReference entry)
+        public void UpdatePackageEntry(PackageReference oldEntry, PackageReference newEntry)
         {
-            if (entry == null)
+            if (oldEntry == null)
             {
-                throw new ArgumentNullException(nameof(entry));
+                throw new ArgumentNullException(nameof(oldEntry));
+            }
+
+            if (newEntry == null)
+            {
+                throw new ArgumentNullException(nameof(newEntry));
             }
 
             if (_disposed || _closed)
@@ -213,20 +175,18 @@ namespace NuGet.Packaging
                 throw new PackagingException(string.Format(CultureInfo.CurrentCulture, Strings.UnableToAddEntry));
             }
 
-            var packagesNode = EnsurePackagesNode();
+            var packagesNode = _xDocument.Descendants(PackagesNodeName).FirstOrDefault();
 
             // Check if package entry already exist on packages.config file
-            var matchingEntry = packagesNode.Descendants(PackageNodeName)
-                .Where(e => e.FirstAttribute.Value.Equals(entry.PackageIdentity.Id, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
-
-            var newEntry = CreateXElementForPackageEntry(entry);
+            var matchingEntry = FindMatchingPackageEntry(oldEntry, packagesNode);
 
             if (matchingEntry != null)
             {
-                _xDocument.ReplaceWith(matchingEntry, newEntry);
+                var newEntryNode = CreateXElementForPackageEntry(newEntry);
+                packagesNode.ReplaceWith(matchingEntry, newEntryNode);
             }
         }
+        
 
         /// <summary>
         /// Remove a package entry
@@ -283,23 +243,15 @@ namespace NuGet.Packaging
             }
 
             var packagesNode = _xDocument.Descendants(PackagesNodeName).FirstOrDefault();
+            var matchingEntry = FindMatchingPackageEntry(entry, packagesNode);
 
-            if (packagesNode != null)
+            if (matchingEntry != null)
             {
-                // Check if package entry already exist on packages.config file
-                var matchingEntry = packagesNode.Descendants(PackageNodeName)
-                    .Where(e => e.FirstAttribute.Value.Equals(entry.PackageIdentity.Id, StringComparison.OrdinalIgnoreCase))
-                    .FirstOrDefault();
-
-                if (matchingEntry != null)
-                {
-                    matchingEntry.Remove();
-                }
-
-                // Sort the package nodes after removal
-                var newPackagesNode = SortPackageNodes(packagesNode);
-                packagesNode = newPackagesNode;
+                matchingEntry.Remove();
             }
+
+            // Sort the package nodes after removal
+            SortPackageNodes(packagesNode);
         }
 
         private XElement EnsurePackagesNode()
@@ -352,14 +304,35 @@ namespace NuGet.Packaging
             return node;
         }
 
-        private XElement SortPackageNodes(XElement packagesNode)
+        private XElement FindMatchingPackageEntry(PackageReference entry, XElement packagesNode)
+        {
+            var matchingEntry = packagesNode?.Descendants(PackageNodeName)
+                .Where(e => e.FirstAttribute.Value.Equals(entry.PackageIdentity.Id, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+
+            if (matchingEntry != null)
+            {
+                var versionAttribute = XName.Get(VersionAttributeName);
+                NuGetVersion version;
+                NuGetVersion.TryParse(matchingEntry.Attributes(versionAttribute).FirstOrDefault().Value, out version);
+
+                if (version.Equals(entry.PackageIdentity.Version))
+                {
+                    return matchingEntry;
+                }
+            }
+
+            throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryAlreadyExist, entry.PackageIdentity.Id));
+        }
+
+        private void SortPackageNodes(XElement packagesNode)
         {
             var newPackagesNode = new XElement(PackagesNodeName,
                 from package in packagesNode.Descendants(PackageNodeName)
                 orderby package.FirstAttribute.Value
                 select package);
 
-            return newPackagesNode;
+            packagesNode.ReplaceWith(newPackagesNode);
         }
 
         private void WriteFile()

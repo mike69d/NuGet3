@@ -57,9 +57,15 @@ namespace NuGet.Packaging.Test
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
             {
-                writer.WritePackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
+                var packageIdentityA = new PackageIdentity("packageA", NuGetVersion.Parse("1.0.1"));
+                var packageReferenceA = new PackageReference(packageIdentityA, NuGetFramework.Parse("net45"));
 
-                writer.UpdatePackageEntry("packageA", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable - net45 + win8"));
+                writer.WritePackageEntry(packageReferenceA);
+
+                var packageIdentityB = new PackageIdentity("packageA", NuGetVersion.Parse("2.0.0"));
+                var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("portable - net45 + win8"));
+
+                writer.UpdatePackageEntry(packageReferenceA, packageReferenceB);
             }
 
             stream.Seek(0, SeekOrigin.Begin);
