@@ -143,6 +143,8 @@ namespace NuGet.Packaging.Test
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
             {
+                writer.WritePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
+
                 Assert.Throws<PackagingException>(() => writer.RemovePackageEntry("packageA", NuGetVersion.Parse("2.0.1"), NuGetFramework.Parse("net4")));
             }
         }

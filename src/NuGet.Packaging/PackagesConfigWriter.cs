@@ -249,6 +249,7 @@ namespace NuGet.Packaging
             }
 
             var packagesNode = _xDocument.Descendants(PackagesNodeName).FirstOrDefault();
+
             var matchingNode = FindMatchingPackageNode(entry, packagesNode);
 
             if (matchingNode == null)
