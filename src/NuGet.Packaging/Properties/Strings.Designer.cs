@@ -139,7 +139,7 @@ namespace NuGet.Packaging
         }
 
         /// <summary>
-        /// Writer closed. Unable to add entry.
+        /// An error occurred while updating packages.config. The file was closed before the entry could be added.
         /// </summary>
         internal static string UnableToAddEntry
         {
@@ -147,7 +147,7 @@ namespace NuGet.Packaging
         }
 
         /// <summary>
-        /// Package entry already exists. Id: {0}
+        /// Package entry already exists in packages.config. Id: {0}
         /// </summary>
         internal static string PackageEntryAlreadyExist
         {
@@ -155,7 +155,7 @@ namespace NuGet.Packaging
         }
 
         /// <summary>
-        /// Package entry does not exists. Id: {0}, Version: {1}
+        /// Package entry does not exists in packages.config. Id: {0}, Version: {1}
         /// </summary>
         internal static string PackageEntryNotExist
         {
@@ -163,11 +163,19 @@ namespace NuGet.Packaging
         }
 
         /// <summary>
-        /// Writer closed. Unable to add entry.
+        /// MinClientVersion already exists in packages.config
         /// </summary>
         internal static string MinClientVersionAlreadyExist
         {
             get { return GetString("MinClientVersionAlreadyExist"); }
+        }
+
+        /// <summary>
+        /// Fail to load packages.config as XML file. Please check it. 
+        /// </summary>
+        internal static string FailToLoadPackagesConfig
+        {
+            get { return GetString("FailToLoadPackagesConfig"); }
         }
 
         private static string GetString(string name, params string[] formatterNames)

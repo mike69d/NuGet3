@@ -50,19 +50,32 @@ namespace NuGet.Packaging
             _stream = stream;
             _closed = false;
             _frameworkMappings = frameworkMappings;
-            LoadOrCreateXDocument();
-        }
+            _xDocument = LoadXDocumentFromStream(stream);
 
-        private void LoadOrCreateXDocument()
-        {
-            try
-            {
-                _xDocument = XDocument.Load(_stream, LoadOptions.PreserveWhitespace);
-            }
-            catch (XmlException)
+            // Create a new XDocument
+            if (_xDocument == null)
             {
                 _xDocument = new XDocument();
             }
+        }
+
+        private XDocument LoadXDocumentFromStream(Stream stream)
+        {
+            XDocument xDocument = null;
+
+            try
+            {
+                if (stream is FileStream)
+                {
+                    xDocument = XDocument.Load(_stream, LoadOptions.PreserveWhitespace);
+                }
+            }
+            catch (XmlException)
+            {
+                throw new PackagingException(string.Format(CultureInfo.CurrentCulture, Strings.FailToLoadPackagesConfig));
+            }
+
+            return xDocument;
         }
 
         /// <summary>
@@ -92,8 +105,8 @@ namespace NuGet.Packaging
         /// </summary>
         /// <param name="packageId">Package Id</param>
         /// <param name="version">Package Version</param>
-        /// <param name="targetFramework">Package targetFramework</param>
-        public void WritePackageEntry(string packageId, NuGetVersion version, NuGetFramework targetFramework)
+        /// <param name="targetFramework">Package targetFramework that's compatible with current project</param>
+        public void AddPackageEntry(string packageId, NuGetVersion version, NuGetFramework targetFramework)
         {
             if (packageId == null)
             {
@@ -110,24 +123,24 @@ namespace NuGet.Packaging
                 throw new ArgumentNullException(nameof(targetFramework));
             }
 
-            WritePackageEntry(new PackageIdentity(packageId, version), targetFramework);
+            AddPackageEntry(new PackageIdentity(packageId, version), targetFramework);
         }
 
         /// <summary>
         /// Adds a basic package entry to the file
         /// </summary>
-        public void WritePackageEntry(PackageIdentity identity, NuGetFramework targetFramework)
+        public void AddPackageEntry(PackageIdentity identity, NuGetFramework targetFramework)
         {
             var entry = new PackageReference(identity, targetFramework);
 
-            WritePackageEntry(entry);
+            AddPackageEntry(entry);
         }
 
         /// <summary>
         /// Adds a package entry to the file
         /// </summary>
         /// <param name="entry">Package reference entry</param>
-        public void WritePackageEntry(PackageReference entry)
+        public void AddPackageEntry(PackageReference entry)
         {
             if (entry == null)
             {
@@ -141,9 +154,13 @@ namespace NuGet.Packaging
 
             var packagesNode = EnsurePackagesNode();
 
-            if (packagesNode.Descendants(PackageNodeName).Where(e => StringComparer.OrdinalIgnoreCase.Equals(e.FirstAttribute.Value, entry.PackageIdentity.Id)).Any())
+            if (packagesNode
+                .Descendants(PackageNodeName)
+                .Where(e => StringComparer.OrdinalIgnoreCase.Equals(e.FirstAttribute.Value, entry.PackageIdentity.Id))
+                .Any())
             {
-                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryAlreadyExist, entry.PackageIdentity.Id));
+                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, 
+                    Strings.PackageEntryAlreadyExist, entry.PackageIdentity.Id));
             }
             else
             {
@@ -184,16 +201,16 @@ namespace NuGet.Packaging
 
             if (matchingNode == null)
             {
-                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryNotExist, oldEntry.PackageIdentity.Id, oldEntry.PackageIdentity.Version));
+                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, 
+                    Strings.PackageEntryNotExist, oldEntry.PackageIdentity.Id, oldEntry.PackageIdentity.Version));
             }
             else
             {
-                var newEntryNode = CreateXElementForPackageEntry(newEntry);
-                matchingNode.ReplaceWith(newEntryNode);
+                var newPackageNode = ReplacePackageAttributes(matchingNode, newEntry);
+                matchingNode.ReplaceWith(newPackageNode);
             }
         }
         
-
         /// <summary>
         /// Remove a package entry
         /// </summary>
@@ -221,7 +238,7 @@ namespace NuGet.Packaging
         }
 
         /// <summary>
-        /// Remove a package identity to the file
+        /// Remove a package identity from the file
         /// </summary>
         /// <param name="identity">Package identity</param>
         /// <param name="targetFramework">Package targetFramework</param>
@@ -254,14 +271,12 @@ namespace NuGet.Packaging
 
             if (matchingNode == null)
             {
-                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, Strings.PackageEntryNotExist, entry.PackageIdentity.Id, entry.PackageIdentity.Version));
+                throw new PackagingException(String.Format(CultureInfo.CurrentCulture, 
+                    Strings.PackageEntryNotExist, entry.PackageIdentity.Id, entry.PackageIdentity.Version));
             }
             else
             {
                 matchingNode.Remove();
-
-                // Sort the package nodes after removal
-                SortPackageNodes(packagesNode);
             }
         }
 
@@ -317,7 +332,8 @@ namespace NuGet.Packaging
 
         private XElement FindMatchingPackageNode(PackageReference entry, XElement packagesNode)
         {
-            var matchingNode = packagesNode?.Descendants(PackageNodeName)
+            var matchingNode = packagesNode
+                ?.Descendants(PackageNodeName)
                 .Where(e => e.FirstAttribute.Value.Equals(entry.PackageIdentity.Id, StringComparison.OrdinalIgnoreCase))
                 .FirstOrDefault();
 
@@ -334,6 +350,25 @@ namespace NuGet.Packaging
             }
 
             return null;
+        }
+
+        private XElement ReplacePackageAttributes(XElement existingNode, PackageReference newEntry)
+        {
+            var newEntryNode = CreateXElementForPackageEntry(newEntry);
+
+            var newAttributeNames = newEntryNode.Attributes().Select(a => a.Name);
+            var existingAttributeNames = existingNode.Attributes().Select(a => a.Name);
+            var extraAttributeNames = existingAttributeNames.Except(newAttributeNames);
+
+            foreach (XName name in extraAttributeNames)
+            {
+                var attribute = new XAttribute(name, existingNode.Attribute(name).Value);
+                // Add back existing attributes that was not in the new package reference entry
+                // as to keep backward-compatbility
+                newEntryNode.Add(attribute);
+            }
+
+            return newEntryNode;
         }
 
         private void SortPackageNodes(XElement packagesNode)

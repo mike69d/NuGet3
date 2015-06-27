@@ -22,9 +22,9 @@ namespace NuGet.Packaging.Test
             {
                 writer.WriteMinClientVersion(NuGetVersion.Parse("3.0.1"));
 
-                writer.WritePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
+                writer.AddPackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
 
-                writer.WritePackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
+                writer.AddPackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
             }
 
             stream.Seek(0, SeekOrigin.Begin);
@@ -58,7 +58,7 @@ namespace NuGet.Packaging.Test
                 var packageIdentityA = new PackageIdentity("packageA", NuGetVersion.Parse("1.0.1"));
                 var packageReferenceA = new PackageReference(packageIdentityA, NuGetFramework.Parse("net45"));
 
-                writer.WritePackageEntry(packageReferenceA);
+                writer.AddPackageEntry(packageReferenceA);
 
                 var packageIdentityB = new PackageIdentity("packageA", NuGetVersion.Parse("2.0.0"));
                 var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("portable-net45+win8"));
@@ -84,6 +84,46 @@ namespace NuGet.Packaging.Test
         }
 
         [Fact]
+        public void PackagesConfigWriter_UpdateAttributes()
+        {
+            System.Diagnostics.Debugger.Launch();
+            var stream = new MemoryStream();
+
+            using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
+            {
+                var packageIdentityA = new PackageIdentity("packageA", NuGetVersion.Parse("1.0.1"));
+                var packageReferenceA = new PackageReference(packageIdentityA, NuGetFramework.Parse("net45"), userInstalled: true, developmentDependency: false, requireReinstallation: true);
+
+                writer.AddPackageEntry(packageReferenceA);
+
+                var packageIdentityB = new PackageIdentity("packageA", NuGetVersion.Parse("3.0.1"));
+                var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("dnxcore50"));
+
+                writer.UpdatePackageEntry(packageReferenceA, packageReferenceB);
+            }
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            var xml = XDocument.Load(stream);
+
+            Assert.Equal("utf-8", xml.Declaration.Encoding);
+
+            PackagesConfigReader reader = new PackagesConfigReader(xml);
+
+            var packages = reader.GetPackages().ToArray();
+            Assert.Equal("1", packages.Count().ToString());
+            Assert.Equal("packageA", packages[0].PackageIdentity.Id);
+
+            Assert.Equal("3.0.1", packages[0].PackageIdentity.Version.ToNormalizedString());
+
+            Assert.Equal("dnxcore5", packages[0].TargetFramework.GetShortFolderName());
+
+            Assert.Equal("true", packages[0].IsUserInstalled.ToString());
+
+            Assert.Equal("true", packages[0].RequireReinstallation.ToString());
+        }
+
+        [Fact]
         public void PackagesConfigWriter_UpdateError()
         {
             var stream = new MemoryStream();
@@ -93,7 +133,7 @@ namespace NuGet.Packaging.Test
                 var packageIdentityA = new PackageIdentity("packageA", NuGetVersion.Parse("1.0.1"));
                 var packageReferenceA = new PackageReference(packageIdentityA, NuGetFramework.Parse("net45"));
 
-                writer.WritePackageEntry(packageReferenceA);
+                writer.AddPackageEntry(packageReferenceA);
 
                 var packageIdentityB = new PackageIdentity("packageB", NuGetVersion.Parse("2.0.0"));
                 var packageReferenceB = new PackageReference(packageIdentityB, NuGetFramework.Parse("portable-net45+win8"));
@@ -112,9 +152,9 @@ namespace NuGet.Packaging.Test
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
             {
-                writer.WritePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
+                writer.AddPackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
 
-                writer.WritePackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
+                writer.AddPackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
 
                 writer.RemovePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
             }
@@ -143,7 +183,7 @@ namespace NuGet.Packaging.Test
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
             {
-                writer.WritePackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
+                writer.AddPackageEntry("packageB", NuGetVersion.Parse("2.0.0"), NuGetFramework.Parse("portable-net45+win8"));
 
                 Assert.Throws<PackagingException>(() => writer.RemovePackageEntry("packageA", NuGetVersion.Parse("2.0.1"), NuGetFramework.Parse("net4")));
             }
@@ -156,9 +196,9 @@ namespace NuGet.Packaging.Test
 
             using (PackagesConfigWriter writer = new PackagesConfigWriter(stream))
             {
-                writer.WritePackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
+                writer.AddPackageEntry("packageA", NuGetVersion.Parse("1.0.1"), NuGetFramework.Parse("net45"));
 
-                Assert.Throws<PackagingException>(() => writer.WritePackageEntry("packageA", NuGetVersion.Parse("2.0.1"), NuGetFramework.Parse("net4")));
+                Assert.Throws<PackagingException>(() => writer.AddPackageEntry("packageA", NuGetVersion.Parse("2.0.1"), NuGetFramework.Parse("net4")));
             }
         }
     }
