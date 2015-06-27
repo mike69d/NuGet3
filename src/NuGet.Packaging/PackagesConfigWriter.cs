@@ -52,7 +52,8 @@ namespace NuGet.Packaging
             _frameworkMappings = frameworkMappings;
             _xDocument = LoadXDocumentFromStream(stream);
 
-            // Create a new XDocument
+            // Create a new XDocument if stream is not a file stream,
+            // i.e. there is no existing packages.config on disk.
             if (_xDocument == null)
             {
                 _xDocument = new XDocument();
@@ -72,6 +73,8 @@ namespace NuGet.Packaging
             }
             catch (XmlException)
             {
+                // Throw PackagingException when failing to parse packages.config on disk.
+                // So that user can be notified about corruptions in packages.config.
                 throw new PackagingException(string.Format(CultureInfo.CurrentCulture, Strings.FailToLoadPackagesConfig));
             }
 
